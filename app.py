@@ -146,7 +146,7 @@ resume:{resume}
 description:{jd}
 
 I want the response in one single string having the structure
-{{"Overall Score":"", "Keyword Matching score":"", "MissingKeywords":[], "keywords feedback":"", "Relevant Experience Score":"", "Relevant Experience Feedback":"","Skills Score":"", "Hard Skills Score":"", "Hard Skills Feedback":"", "Soft Skills Score":"", "Soft Skills Feedback":"",
+{{"Overall Score":"sum of acheived points/sum of all scores", "Keyword Matching score":"", "MissingKeywords":[], "keywords feedback":"", "Relevant Experience Score":"", "Relevant Experience Feedback":"","Skills Score":"", "Hard Skills Score":"", "Hard Skills Feedback":"", "Soft Skills Score":"", "Soft Skills Feedback":"",
 "Education and Certifications Score":"", "Education and Certifications feedback": "", "Job Tenure and Career Progression Score": "", "Job Tenure and Career Progression Feedback":"", "Projects Relevance Score": "", "Projects Relevance Feedback": "","Company Culture Fit Score":"", "Company Culture Fit Score feedback":""}}
 """
 
@@ -180,5 +180,6 @@ if submit:
         response = get_gemini_response(input_prompt.format(resume=resume, jd=jd))
         st.subheader("Response:")
         parsed_response = json.loads(response)
+        st.write(response)
         for key, value in parsed_response.items():
             st.write(f"**{key}:** \n\n{value}")
