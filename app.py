@@ -1,9 +1,11 @@
 import streamlit as st
 import google.generativeai as genai
+from openai import OpenAI
 import os
 import PyPDF2 as pdf
 from dotenv import load_dotenv
 import json
+import matplotlib.pyplot as plt
 
 # Load environment variables
 load_dotenv()
@@ -17,27 +19,33 @@ st.set_page_config(
 
 # Sidebar to input Google API Key
 st.sidebar.title("ATS Score Calculator")
-API_KEY = st.sidebar.text_input("Enter your Google API Key", type="password")
+API_KEY = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
 st.sidebar.subheader("Don't have a Google API Key?")
-st.sidebar.write("Visit [Google Makersuite](https://makersuite.google.com/app/apikey) and log in with your Google account. Then click on 'Create API Key'.")
+st.sidebar.write("Visit [OpenAI API Keys page](https://platform.openai.com/settings/profile?tab=api-keys) and log in with your openai account. Then click on 'Create API Key'.")
+
+
 
 # Check if API key is provided
 if not API_KEY:
-    st.error("Please enter your Google API Key.")
+    st.error("Please enter your OpenAI API Key.")
     st.stop()
 
-# Function to configure Gemini AI model with the provided API key
-def configure_gemini_api(api_key):
-    genai.configure(api_key=api_key)
+client = OpenAI(api_key=API_KEY)
 
-# Configure Gemini AI model with the provided API key
-configure_gemini_api(API_KEY)
 
 # Function to get response from Gemini AI
-def get_gemini_response(input):
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(input)
-    return response.text
+def get_openai_response(system_prompt, user_prompt):
+    completion = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+    )
+
+    # model = genai.GenerativeModel('gemini-pro')
+    # response = model.generate_content(input)
+    return completion.choices[0].message.content
 
 # Function to extract text from uploaded PDF file
 def input_pdf_text(uploaded_file):
@@ -49,7 +57,7 @@ def input_pdf_text(uploaded_file):
     return text
 
 # Prompt Template
-input_prompt = """
+system_prompt = """
 Assume yourself as the best ATS system and below is your score calculation criteria:
 
 ATS Score Calculation Criteria
@@ -66,105 +74,97 @@ ATS Score Calculation Criteria
 6. Application Quality: Assessing the completeness and professionalism of the application.
 
 
-1. Keyword Matching (40-50% of the score):
+1. Keyword Matching (40% of the score):
 Exact Match: Keywords that appear exactly as in the job description.
 Synonyms: Recognizing variations and synonyms of keywords.
 Frequency: How often the keywords appear in the resume.
 Context: Keywords used in relevant contexts (e.g., “managed a team” vs. “team”).
 
-2. Relevance of Experience (20-30% of the score):
+2. Relevance of Experience (15% of the score):
 Job Titles: Matching past job titles with the job applied for.
 Job Descriptions: Matching past job responsibilities with the job applied for.
 Industry: Experience in the same or a related industry.
 
-3. Skills (15-25% of the score)
+3. Skills (20% of the score)
 Hard Skills: Specific technical skills required for the job.
 Soft Skills: Important interpersonal and organizational skills.
 Skill Level: Proficiency levels indicated for each skill.
 
-4. Education and Certifications (10-20% of the score)
+4. Education and Certifications (10% of the score)
 Degree Level: Matching the required level of education (e.g., Bachelor's, Master's).
 Field of Study: Relevant academic background.
 Certifications: Professional certifications relevant to the job.
 
-5. Job Tenure and Career Progression (10-15% of the score)
+5. Job Tenure and Career Progression (5% of the score)
 Stability: Duration of employment at previous jobs.
 Advancement: Evidence of promotions and career growth.
 
-6. Custom Scoring Rules (Variable percentage)
-Company Culture Fit: Attributes that align with company values.
-Project Experience: Specific project experience relevant to the job.
-Other Employer Preferences: Custom criteria set by the employer.
+6. Project and its relevance to JD (10%)
 
 Example of Score Calculation Breakdown
+```
+1. Keyword Matching (28/60)
+Exact Match: 8/35 
+Synonyms and Variants: 10/15
+Frequency: 10/10
 
-1. Job Posting Keywords (50 points)
-Exact Match: 20 points
-Synonyms and Variants: 10 points
-Frequency: 10 points
-Context: 10 points
+2. Relevant Experience (5/22.5)
+Relevant Experience: 5/22.5 
 
-2. Relevant Experience (30 points)
-Job Titles: 10 points
-Job Descriptions: 10 points
-Industry: 10 points
-Skills (25 points)
+3. Skills (10/30)
+Hard Skills: 8/20 
+Soft Skills: 2/10
 
-3. Skills (20 points)
-Hard Skills: 15 points
-Soft Skills: 5 points
-Skill Level: 5 points
+4. Education and Certifications (14/22.5)
+Degree Level: 10/12.5
+Field of Study: 2/5 
+Certifications: 2/5
 
-4. Education and Certifications (20 points)
-Degree Level: 10 points
-Field of Study: 5 points
-Certifications: 5 points
+5. Job Tenure and Career Progression (5/7.5)
+Stability: 4/5 
+Advancement: 1/2.5 
 
-5. Job Tenure and Career Progression (15 points)
-Stability: 10 points
-Advancement: 5 points
+6. Projects Relevance (10/15)
+Relevance of Technologies used in project: 8/10
+Complexity of project: 2/5
 
-6. Projects Relevance (15 points)
 
-7. Company Culture Fit: 5 points
+Overall Score = (sum of all numerators of each section)/(sum of all denomenator of all sections)
+
+Overall Score = 77/150
+```
 
 Now calculate the ATS score for JD against Resume and give me ATS section wise score and feedback or action item for each section in ATS
 
 Caution: Don't halusinate anything, extract keywords that are mentioned in pdfs only.  
 Don't assume that resume will be inline with JD, always consider that resume and JD as 2 independent things and extract data accordingly.
 
-Evaluate the format of resume as well and suggest the ATS friendly format along with suggestions and scores for each section and consolidated scores
-
-After giving suggestions,  as per suggestions update the relevant content in resume and give the resume content. use content mentioned only in resume, don't add anything else extra while updating resume. 
-While generating updated resume:
-1. Use content from source resume only, don't add anything new that is not mentioned in source resume
-2. Prioritise the skills that are mentioned in resume and just reorder the JD skills to first
-3. Update career objectiveline that is suitable for JD but don't over promise things
-
 You must consider the job market is very competitive and you should provide the best assistance for improving the resumes. Assign the percentage Matching based on JD and the missing keywords with high accuracy.
+
+Also your output will be evaluated on following things:
+1. Always denominator should be 150 points
+2. And the score calculated should be consistent and should have rationale based on the sub criteria that is mentioned in the prompt
+3. The result should always be a string.
+
+"""
+
+user_prompt = """
 resume:{resume}
 description:{jd}
 
-I want the response in one single string having the structure
-{{"Overall Score":"sum of acheived points/sum of all scores", "Keyword Matching score":"", "MissingKeywords":[], "keywords feedback":"", "Relevant Experience Score":"", "Relevant Experience Feedback":"","Skills Score":"", "Hard Skills Score":"", "Hard Skills Feedback":"", "Soft Skills Score":"", "Soft Skills Feedback":"",
-"Education and Certifications Score":"", "Education and Certifications feedback": "", "Job Tenure and Career Progression Score": "", "Job Tenure and Career Progression Feedback":"", "Projects Relevance Score": "", "Projects Relevance Feedback": "","Company Culture Fit Score":"", "Company Culture Fit Score feedback":""}}
+I want the response in the string format having the below format
+{{"Overall Score":"sum of acheived points/150","Overall Score percent":"%", "Keyword Matching score":"<Achieved points>/60",
+"Keyword Matching percent":"%",
+ "MissingKeywords":[], "Keywords feedback":"", "Relevant Experience Score":"<Achieved points>/22.5", "Relevant Experience Feedback":"","Relevant Experience percent":"%", "Skills Score":"<Achieved points>/30", "Skills percent":"%",  "Hard Skills Score":"<Achieved points>/20", "Hard Skills Feedback":"", "Soft Skills Score":"<Achieved points>/10", "Soft Skills Feedback":"",
+"Education and Certifications Score":"<Achieved points>/22.5", 
+"Education and Certifications percent":"%",
+"Education and Certifications feedback": "", "Job Tenure and Career Progression Score": "<Achieved points>/7.5",
+"Job Tenure and Career Progression percent":"%",
+ "Job Tenure and Career Progression Feedback":"", "Projects Relevance Score": "<Achieved points>/15", "Projects Relevance percent":"%", "Projects Relevance Feedback": "",}}
 """
 
-
-# # Prompt Template
-# input_prompt = """
-# Hey Act Like a skilled or very experienced ATS (Application Tracking System)
-# with a deep understanding of the tech field, software engineering, data science, data analyst
-# and big data engineering. Your task is to evaluate the resume based on the given job description.
-# You must consider the job market is very competitive and you should provide the 
-# best assistance for improving the resumes. Assign the percentage Matching based 
-# on JD and the missing keywords with high accuracy.
-# resume:{text}
-# description:{jd}
-
-# I want the response in one single string having the structure
-# {{"JD Match":"%","MissingKeywords":[],"Profile Summary":""}}
-# """
+def get_percent_value(input):
+    return float(input.strip('%'))
 
 ## Streamlit app
 st.title("Resume ATS Score")
@@ -177,9 +177,43 @@ submit = st.button("Submit")
 if submit:
     if uploaded_file is not None:
         resume = input_pdf_text(uploaded_file)
-        response = get_gemini_response(input_prompt.format(resume=resume, jd=jd))
-        st.subheader("Response:")
-        parsed_response = json.loads(response)
+        response = get_openai_response(system_prompt, user_prompt.format(resume=resume, jd=jd))
         st.write(response)
-        for key, value in parsed_response.items():
+        json_result = json.loads(response)
+        print(json_result)
+        # Data
+        data = {"Overall Score":get_percent_value(json_result["Overall Score percent"]), "Keywords score": get_percent_value(json_result["Keyword Matching percent"]), "Skills score": get_percent_value(json_result["Skills percent"]), "Experience score": get_percent_value(json_result["Relevant Experience percent"]), "Education and Certifications Score":get_percent_value(json_result["Education and Certifications percent"]),"Job Tenure and Career Progression Score":get_percent_value(json_result["Job Tenure and Career Progression percent"]), "Projects Relevance Score": get_percent_value(json_result["Projects Relevance percent"])}
+
+        # Streamlit App
+        st.title("Feedback on resume:")
+
+        # Create a list to hold the Streamlit columns
+        columns = st.columns(4)
+
+        # Counter for current column index
+        col_index = 0
+
+        # Iterate through the data
+        for category, score in data.items():
+
+            # Get the current column to use
+            with columns[col_index]:
+                st.write(f"**{category}:**")
+
+                # Create and display the pie chart (same as before)
+                fig, ax = plt.subplots(figsize=(2, 2))
+                wedgeprops = {'width': 0.2, 'edgecolor': 'w'}
+                textprops = {'fontsize': 12}
+                ax.pie([score, 100 - score], wedgeprops=wedgeprops, startangle=90, colors=['skyblue', 'lightgray'])
+                centre_circle = plt.Circle((0, 0), 0.70, fc='white')
+                fig.gca().add_artist(centre_circle)
+                ax.axis('equal')
+                ax.text(0, 0, f"{score}%", ha='center', va='center', fontsize=14)
+                st.pyplot(fig)
+
+            # Move to the next column, wrapping to the next row if needed
+            col_index = (col_index + 1) % 4
+
+        for key, value in json_result.items():
             st.write(f"**{key}:** \n\n{value}")
+
