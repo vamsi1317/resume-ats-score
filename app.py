@@ -177,43 +177,48 @@ submit = st.button("Submit")
 if submit:
     if uploaded_file is not None:
         resume = input_pdf_text(uploaded_file)
-        response = get_openai_response(system_prompt, user_prompt.format(resume=resume, jd=jd))
-        st.write(response)
-        json_result = json.loads(response)
-        print(json_result)
-        # Data
-        data = {"Overall Score":get_percent_value(json_result["Overall Score percent"]), "Keywords score": get_percent_value(json_result["Keyword Matching percent"]), "Skills score": get_percent_value(json_result["Skills percent"]), "Experience score": get_percent_value(json_result["Relevant Experience percent"]), "Education and Certifications Score":get_percent_value(json_result["Education and Certifications percent"]),"Job Tenure and Career Progression Score":get_percent_value(json_result["Job Tenure and Career Progression percent"]), "Projects Relevance Score": get_percent_value(json_result["Projects Relevance percent"])}
+        try:
+            response = get_openai_response(system_prompt, user_prompt.format(resume=resume, jd=jd))
+            try:
+                json_result = json.loads(response)
+                print(json_result)
+                # Data
+                data = {"Overall Score":get_percent_value(json_result["Overall Score percent"]), "Keywords score": get_percent_value(json_result["Keyword Matching percent"]), "Skills score": get_percent_value(json_result["Skills percent"]), "Experience score": get_percent_value(json_result["Relevant Experience percent"]), "Education and Certifications Score":get_percent_value(json_result["Education and Certifications percent"]),"Job Tenure and Career Progression Score":get_percent_value(json_result["Job Tenure and Career Progression percent"]), "Projects Relevance Score": get_percent_value(json_result["Projects Relevance percent"])}
 
-        # Streamlit App
-        st.title("Feedback on resume:")
+                # Streamlit App
+                st.title("Feedback on resume:")
 
-        # Create a list to hold the Streamlit columns
-        columns = st.columns(4)
+                # Create a list to hold the Streamlit columns
+                columns = st.columns(4)
 
-        # Counter for current column index
-        col_index = 0
+                # Counter for current column index
+                col_index = 0
 
-        # Iterate through the data
-        for category, score in data.items():
+                # Iterate through the data
+                for category, score in data.items():
 
-            # Get the current column to use
-            with columns[col_index]:
-                st.write(f"**{category}:**")
+                    # Get the current column to use
+                    with columns[col_index]:
+                        st.write(f"**{category}:**")
 
-                # Create and display the pie chart (same as before)
-                fig, ax = plt.subplots(figsize=(2, 2))
-                wedgeprops = {'width': 0.2, 'edgecolor': 'w'}
-                textprops = {'fontsize': 12}
-                ax.pie([score, 100 - score], wedgeprops=wedgeprops, startangle=90, colors=['skyblue', 'lightgray'])
-                centre_circle = plt.Circle((0, 0), 0.70, fc='white')
-                fig.gca().add_artist(centre_circle)
-                ax.axis('equal')
-                ax.text(0, 0, f"{score}%", ha='center', va='center', fontsize=14)
-                st.pyplot(fig)
+                        # Create and display the pie chart (same as before)
+                        fig, ax = plt.subplots(figsize=(2, 2))
+                        wedgeprops = {'width': 0.2, 'edgecolor': 'w'}
+                        textprops = {'fontsize': 12}
+                        ax.pie([score, 100 - score], wedgeprops=wedgeprops, startangle=90, colors=['skyblue', 'lightgray'])
+                        centre_circle = plt.Circle((0, 0), 0.70, fc='white')
+                        fig.gca().add_artist(centre_circle)
+                        ax.axis('equal')
+                        ax.text(0, 0, f"{score}%", ha='center', va='center', fontsize=14)
+                        st.pyplot(fig)
 
-            # Move to the next column, wrapping to the next row if needed
-            col_index = (col_index + 1) % 4
+                    # Move to the next column, wrapping to the next row if needed
+                    col_index = (col_index + 1) % 4
 
-        for key, value in json_result.items():
-            st.write(f"**{key}:** \n\n{value}")
-
+                for key, value in json_result.items():
+                    st.write(f"**{key}:** \n\n{value}")
+            except Exception as e:
+                st.write(response)
+                st.write(type(response))
+        except Exception as e:
+            st.write(f"An unexpected error occurred: {e}", exc_info=True)
